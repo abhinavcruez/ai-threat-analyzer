@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Brain, RefreshCw, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 export default function Assets() {
   const [assets, setAssets] = useState<any[]>([]);
@@ -8,6 +8,24 @@ export default function Assets() {
   const [formData, setFormData] = useState({ name: '', type: 'Server', version: '', ip_address: '' });
 
   const [showScript, setShowScript] = useState(false);
+  const [auditingHost, setAuditingHost] = useState<string | null>(null);
+  const [auditResults, setAuditResults] = useState<Record<string, any>>({});
+
+  const handleAudit = async (hostIp: string, services: any[]) => {
+    if (auditingHost === hostIp) return;
+    try {
+      setAuditingHost(hostIp);
+      const token = localStorage.getItem('token');
+      const res = await axios.post('http://localhost:5000/api/assets/audit', { hostIp, services }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAuditResults(prev => ({ ...prev, [hostIp]: res.data }));
+    } catch (error: any) {
+      alert(error.response?.data?.error || "AI Audit failed. Check console.");
+    } finally {
+      setAuditingHost(null);
+    }
+  };
 
   const fetchAssets = async () => {
     const token = localStorage.getItem('token');
@@ -37,6 +55,27 @@ export default function Assets() {
       headers: { Authorization: `Bearer ${token}` }
     });
     fetchAssets();
+  };
+
+  const groupedAssets = assets.reduce((acc, asset) => {
+    const host = asset.ip_address || 'Unknown Host';
+    if (!acc[host]) {
+      acc[host] = { hostAsset: null, services: [] };
+    }
+    if (asset.type === 'Server' || asset.name.startsWith('Host:')) {
+      acc[host].hostAsset = asset;
+    } else {
+      acc[host].services.push(asset);
+    }
+    return acc;
+  }, {} as Record<string, { hostAsset: any, services: any[] }>);
+
+  const getVersionStatus = (version: string, name: string) => {
+    if (!version || version === 'Unknown') return { text: 'Unknown', color: 'bg-gray-100 text-gray-800' };
+    const vulnerableServices = ['docker', 'cron', 'openssh', 'nginx', 'apache'];
+    const isVulnerable = vulnerableServices.some(s => name.toLowerCase().includes(s));
+    if (isVulnerable) return { text: 'Update Recommended', color: 'bg-yellow-100 text-yellow-800' };
+    return { text: 'Up to date', color: 'bg-green-100 text-green-800' };
   };
 
   return (
@@ -148,52 +187,143 @@ done
 echo "\\nScan complete!"`}
           </pre>
           <div className="mt-4 p-4 bg-gray-800 rounded">
-            <p className="text-sm font-semibold mb-2 text-white border-t border-gray-600 pt-3">Pro-Tip: Single-Command Execution (Direct from Backend)</p>
-            <p className="text-xs text-gray-400 mb-2">You don't even need to use GitHub! Your AI Threat Analyzer backend serves this script automatically. Run it instantly on any server with one command:</p>
+            <p className="text-sm font-semibold mb-2 text-white border-t border-gray-600 pt-3">Pro-Tip: Single-Command Execution (via GitHub)</p>
+            <p className="text-xs text-gray-400 mb-2">If you upload the script above to a GitHub Gist or Repo, you can run it instantly on any server with one command:</p>
             <code className="text-xs text-purple-300 block">
-              curl -sL http://{window.location.hostname}:5000/api/assets/agent.sh | bash -s -- http://{window.location.hostname}:5000 {localStorage.getItem('token')}
+              curl -sL https://raw.githubusercontent.com/abhinavcruez/ai-threat-analyzer/main/scan_assets.sh | bash -s -- {import.meta.env.VITE_TUNNEL_URL || `http://${window.location.hostname}:5000`} {localStorage.getItem('token')}
             </code>
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Version</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP Address</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {assets.map(asset => (
-              <tr key={asset.id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{asset.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{asset.type}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{asset.version || '-'}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {asset.status ? (
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${asset.status === 'active' || asset.status === 'online' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                      {asset.status}
-                    </span>
-                  ) : '-'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{asset.ip_address || '-'}</td>
-                <td className="px-6 py-4 text-sm text-gray-500 truncate max-w-xs" title={asset.details}>{asset.details || '-'}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button onClick={() => handleDelete(asset.id)} className="text-red-600 hover:text-red-900">
-                    <Trash2 className="h-4 w-4 inline" />
+      <div className="space-y-6">
+        {Object.entries(groupedAssets).map(([ip, group]: [string, any]) => (
+          <div key={ip} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6">
+            <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 flex items-center space-x-2">
+                  <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full uppercase tracking-wide font-bold">Host</span>
+                  <span>{group.hostAsset ? group.hostAsset.name.replace('Host: ', '') : ip}</span>
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  <strong>IP:</strong> {ip} | <strong>OS:</strong> {group.hostAsset?.version || 'Unknown'} | <strong>Status:</strong> <span className={group.hostAsset?.status === 'online' ? 'text-green-600 font-semibold' : 'text-gray-500'}>{group.hostAsset?.status || 'Unknown'}</span>
+                </p>
+              </div>
+              <div className="flex space-x-2">
+                <button 
+                  onClick={() => handleAudit(ip, group.services)}
+                  disabled={auditingHost === ip}
+                  className={`px-3 py-2 rounded transition-colors text-sm font-medium flex items-center space-x-2 ${auditingHost === ip ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
+                >
+                  {auditingHost === ip ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
+                  <span>{auditingHost === ip ? 'Auditing...' : 'AI Audit'}</span>
+                </button>
+                {group.hostAsset && (
+                  <button onClick={() => handleDelete(group.hostAsset.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded transition-colors text-sm font-medium flex items-center space-x-1">
+                    <Trash2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Remove</span>
                   </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                )}
+              </div>
+            </div>
+            
+            {auditResults[ip] && (
+              <div className="bg-purple-50 border-b border-purple-100 p-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h4 className="text-lg font-bold text-purple-900 flex items-center space-x-2 mb-2">
+                      <ShieldCheck className="h-5 w-5 text-purple-600" />
+                      <span>AI Security Assessment</span>
+                    </h4>
+                    <p className="text-purple-800 text-sm mb-4">{auditResults[ip].summary}</p>
+                  </div>
+                  <div className={`px-4 py-2 rounded-lg text-center font-bold text-lg ${
+                    auditResults[ip].riskScore >= 8 ? 'bg-red-100 text-red-800' :
+                    auditResults[ip].riskScore >= 5 ? 'bg-orange-100 text-orange-800' :
+                    'bg-green-100 text-green-800'
+                  }`}>
+                    {auditResults[ip].riskScore} / 10
+                    <div className="text-xs uppercase tracking-wider font-semibold opacity-80 mt-1">Risk Score</div>
+                  </div>
+                </div>
+                
+                {auditResults[ip].findings && auditResults[ip].findings.length > 0 && (
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {auditResults[ip].findings.map((finding: any, idx: number) => (
+                      <div key={idx} className="bg-white rounded p-4 border border-purple-100 shadow-sm">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="font-bold text-gray-900">{finding.service}</span>
+                          <span className={`text-xs px-2 py-1 rounded font-bold uppercase tracking-wide ${
+                            finding.severity === 'Critical' ? 'bg-red-100 text-red-800' :
+                            finding.severity === 'High' ? 'bg-orange-100 text-orange-800' :
+                            finding.severity === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}>{finding.severity}</span>
+                        </div>
+                        <p className="text-sm text-gray-700 mb-2"><strong>Issue:</strong> {finding.issue}</p>
+                        <p className="text-sm text-green-700 bg-green-50 p-2 rounded"><strong>Fix:</strong> {finding.remediation}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {group.services.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-white">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Service Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Version</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Security State</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-100">
+                    {group.services.map((service: any) => {
+                      const security = getVersionStatus(service.version, service.name);
+                      // Clean up service name by removing the "(on hostname)" suffix
+                      const cleanName = service.name.replace(/ \(on .*\)$/, '');
+                      return (
+                        <tr key={service.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-800">{cleanName}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">{service.version || '-'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2.5 py-1 inline-flex text-xs leading-4 font-semibold rounded-full border ${security.color.includes('green') ? 'bg-green-50 text-green-700 border-green-200' : security.color.includes('yellow') ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-gray-50 text-gray-600 border-gray-200'}`}>
+                              {security.text}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${service.status === 'active' || service.status === 'online' ? 'text-green-600' : 'text-red-500'}`}>
+                              <span className={`w-2 h-2 rounded-full mr-1.5 self-center ${service.status === 'active' || service.status === 'online' ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                              {service.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button onClick={() => handleDelete(service.id)} className="text-gray-400 hover:text-red-600 transition-colors">
+                              <Trash2 className="h-4 w-4 inline" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ))}
+        {assets.length === 0 && (
+          <div className="text-center py-16 bg-white rounded-lg border border-gray-200 shadow-sm">
+            <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+              <span className="text-gray-400 text-2xl">📡</span>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-1">No assets found</h3>
+            <p className="text-gray-500">Use Auto-Discover to add servers and services to your inventory.</p>
+          </div>
+        )}
       </div>
     </div>
   );

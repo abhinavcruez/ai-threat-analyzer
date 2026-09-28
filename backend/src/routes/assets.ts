@@ -54,6 +54,8 @@ echo "\\nScan complete!"
   res.send(script);
 });
 
+import { auditHost } from '../services/assetAuditor';
+
 router.get('/', async (req: Request, res: Response) => {
   try {
     const assets = await prisma.asset.findMany();
@@ -61,6 +63,21 @@ router.get('/', async (req: Request, res: Response) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/audit', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { hostIp, services } = req.body;
+    if (!hostIp || !services || !Array.isArray(services)) {
+      res.status(400).json({ error: 'hostIp and services array are required' });
+      return;
+    }
+    const auditResult = await auditHost(hostIp, services);
+    res.json(auditResult);
+  } catch (error) {
+    console.error('Audit failed:', error);
+    res.status(500).json({ error: 'Audit failed' });
   }
 });
 

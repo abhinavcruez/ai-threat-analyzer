@@ -61,6 +61,7 @@ model ImpactAnalysis {
   asset_id           Int
   impact_level       String
   status             String   @default("OPEN") // OPEN, MITIGATED
+  ai_mitigation_plan String?
   created_at         DateTime @default(now())
 
   analyzed_threat    AnalyzedThreat @relation(fields: [analyzed_threat_id], references: [id])

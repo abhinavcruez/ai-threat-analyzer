@@ -5,6 +5,7 @@ import { RefreshCw, Brain } from 'lucide-react';
 export default function Threats() {
   const [threats, setThreats] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [analyzingId, setAnalyzingId] = useState<number | null>(null);
 
   const fetchThreats = async () => {
     const token = localStorage.getItem('token');
@@ -29,11 +30,19 @@ export default function Threats() {
   };
 
   const handleAnalyze = async (id: number) => {
-    const token = localStorage.getItem('token');
-    await axios.post(`http://localhost:5000/api/threats/${id}/analyze`, {}, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    fetchThreats();
+    if (analyzingId === id) return;
+    try {
+      setAnalyzingId(id);
+      const token = localStorage.getItem('token');
+      await axios.post(`http://localhost:5000/api/threats/${id}/analyze`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await fetchThreats();
+    } catch (error: any) {
+      alert(error.response?.data?.error || "AI Analysis failed. Please check the backend console for details.");
+    } finally {
+      setAnalyzingId(null);
+    }
   };
 
   return (
@@ -66,10 +75,15 @@ export default function Threats() {
               {!threat.analyzedThreat ? (
                 <button 
                   onClick={() => handleAnalyze(threat.id)}
-                  className="flex items-center space-x-2 bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200"
+                  disabled={analyzingId === threat.id}
+                  className={`flex items-center space-x-2 px-3 py-1 rounded transition-colors ${analyzingId === threat.id ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
                 >
-                  <Brain className="h-4 w-4" />
-                  <span>AI Analyze</span>
+                  {analyzingId === threat.id ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Brain className="h-4 w-4" />
+                  )}
+                  <span>{analyzingId === threat.id ? 'Analyzing...' : 'AI Analyze'}</span>
                 </button>
               ) : (
                 <span className={`px-3 py-1 rounded text-xs font-semibold ${

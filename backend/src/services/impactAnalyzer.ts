@@ -25,8 +25,14 @@ export const analyzeImpact = async (analyzedThreatId: number) => {
       const vulnLower = vuln.toLowerCase();
       // Simple string matching logic for correlation
       // In a real-world scenario, this would use CPE mapping or more advanced matching
+      const assetWords = assetNameLower.split(/[\s\-()]+/).filter((w: string) => w.length > 3);
+      const isWordMatch = assetWords.some((w: string) => vulnLower.includes(w));
+
       if (vulnLower.includes(assetNameLower) || assetNameLower.includes(vulnLower) || 
-          (asset.version && vulnLower.includes(asset.version.toLowerCase()))) {
+          (asset.version && vulnLower.includes(asset.version.toLowerCase())) ||
+          isWordMatch ||
+          (vulnLower.includes("service") && assetTypeLower === "service") ||
+          (vulnLower.includes("outdated") && asset.version !== "Unknown")) {
         impacted = true;
         break;
       }

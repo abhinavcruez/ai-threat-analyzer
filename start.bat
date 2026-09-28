@@ -9,6 +9,13 @@ if not exist node_modules (
     echo Installing backend dependencies...
     call npm install
 )
+
+if not exist .env (
+    echo Creating default .env file...
+    echo DATABASE_URL="file:./dev.db" > .env
+    echo JWT_SECRET="default_secret_key_change_me_in_production" >> .env
+    echo OPENROUTER_API_KEY="" >> .env
+)
 echo Updating database schema...
 call npx prisma db push
 call npx prisma generate
@@ -26,8 +33,11 @@ if not exist node_modules (
 start "AI Threat Analyzer - Frontend" cmd /k "npm run dev"
 cd ..
 
+echo [3/3] Setting up Public Tunnel...
+start "AI Threat Analyzer - Public Tunnel" cmd /k "node tunnel.js"
+
 echo.
-echo Both servers are starting up in separate windows!
+echo Servers and Tunnel are starting up in separate windows!
 echo Please wait a few seconds for them to initialize...
 echo.
 
