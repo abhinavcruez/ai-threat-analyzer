@@ -3,6 +3,14 @@ echo ====================================================
 echo     Starting AI Threat Analyzer...
 echo ====================================================
 
+where node >nul 2>nul
+if %ERRORLEVEL% neq 0 (
+    echo ERROR: Node.js is not installed or not in your PATH.
+    echo Please install Node.js (v18+) to run the AI Threat Analyzer.
+    pause
+    exit /b 1
+)
+
 echo [1/2] Setting up Backend Server (Port 5000)...
 cd backend
 if not exist node_modules (
