@@ -7,21 +7,33 @@ echo "===================================================="
 # Trap SIGINT to kill background processes when the user presses Ctrl+C
 trap 'echo -e "\nShutting down servers..."; kill $BACKEND_PID $FRONTEND_PID $TUNNEL_PID 2>/dev/null; exit' SIGINT SIGTERM
 
-# Dependency Check
+# Dependency Check & Auto-Install
 if ! command -v node >/dev/null 2>&1; then
-    echo "ERROR: Node.js is not installed or not in your PATH."
-    if [ "$EUID" -eq 0 ]; then
-        echo "HINT: You ran this script with sudo (root). If you installed Node via NVM,"
-        echo "it might only be available to your standard user. Try running without sudo,"
-        echo "or install Node system-wide."
+    echo "Node.js is not installed or not in your PATH."
+    echo "Attempting to install Node.js automatically via NVM (Node Version Manager)..."
+    
+    if command -v curl >/dev/null 2>&1; then
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+    elif command -v wget >/dev/null 2>&1; then
+        wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+    else
+        echo "ERROR: Neither curl nor wget is installed. Cannot auto-install Node.js."
+        exit 1
     fi
-    echo "Please install Node.js (v18+) to run the AI Threat Analyzer."
-    exit 1
-fi
 
-if ! command -v npm >/dev/null 2>&1; then
-    echo "ERROR: npm is not installed or not in your PATH."
-    exit 1
+    # Load NVM directly into the current session
+    export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+    echo "Installing Node.js v20..."
+    nvm install 20
+    nvm use 20
+
+    if ! command -v node >/dev/null 2>&1; then
+        echo "ERROR: Auto-installation failed. Please install Node.js manually."
+        exit 1
+    fi
+    echo "Node.js successfully installed!"
 fi
 
 echo "[1/2] Setting up Backend Server (Port 5000)..."

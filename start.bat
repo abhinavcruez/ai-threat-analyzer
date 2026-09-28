@@ -5,10 +5,18 @@ echo ====================================================
 
 where node >nul 2>nul
 if %ERRORLEVEL% neq 0 (
-    echo ERROR: Node.js is not installed or not in your PATH.
-    echo Please install Node.js (v18+) to run the AI Threat Analyzer.
-    pause
-    exit /b 1
+    echo Node.js is not installed or not in your PATH.
+    echo Attempting to install Node.js automatically via winget...
+    winget install OpenJS.NodeJS -e --accept-package-agreements --accept-source-agreements
+    
+    where node >nul 2>nul
+    if %ERRORLEVEL% neq 0 (
+        echo ERROR: Auto-installation failed or requires a terminal restart.
+        echo Please install Node.js (v18+) manually or restart your terminal.
+        pause
+        exit /b 1
+    )
+    echo Node.js successfully installed!
 )
 
 echo [1/2] Setting up Backend Server (Port 5000)...
