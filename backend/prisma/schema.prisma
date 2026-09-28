@@ -1,0 +1,68 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
+  password_hash String
+  role          String   @default("ANALYST")
+  created_at    DateTime @default(now())
+}
+
+model Asset {
+  id            Int      @id @default(autoincrement())
+  name          String
+  type          String
+  version       String?
+  ip_address    String?
+  status        String?
+  details       String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  
+  impacts       ImpactAnalysis[]
+}
+
+model ThreatIntelligence {
+  id             Int      @id @default(autoincrement())
+  source_name    String
+  url            String   @unique
+  title          String
+  content        String
+  published_at   DateTime
+  collected_at   DateTime @default(now())
+  
+  analyzedThreat AnalyzedThreat?
+}
+
+model AnalyzedThreat {
+  id                         Int      @id @default(autoincrement())
+  threat_id                  Int      @unique
+  threat                     ThreatIntelligence @relation(fields: [threat_id], references: [id])
+  severity                   String
+  summary                    String
+  vulnerabilities            String   // Array of affected software/CVEs as JSON string
+  iocs                       String   // Array of IOCs (IPs, domains, hashes) as JSON string
+  mitigation_recommendations String
+  analyzed_at                DateTime @default(now())
+
+  impacts                    ImpactAnalysis[]
+}
+
+model ImpactAnalysis {
+  id                 Int      @id @default(autoincrement())
+  analyzed_threat_id Int
+  asset_id           Int
+  impact_level       String
+  status             String   @default("OPEN") // OPEN, MITIGATED
+  created_at         DateTime @default(now())
+
+  analyzed_threat    AnalyzedThreat @relation(fields: [analyzed_threat_id], references: [id])
+  asset              Asset          @relation(fields: [asset_id], references: [id])
+}
